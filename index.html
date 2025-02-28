@@ -10,7 +10,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-height: 100vh; /* Use min-height instead of height */
+            min-height: 100vh; /* Use min-height for flexibility */
             background-color: #f0f0f0;
             overflow-y: auto; /* Allow scrolling if needed */
             touch-action: none; /* Prevent default touch actions */
@@ -21,16 +21,16 @@
             justify-content: center;
             gap: 10px;
         }
+        #gameCanvas {
+            border: 1px solid #000;
+            max-width: 100%; /* Fit within screen */
+            height: auto; /* Maintain aspect ratio */
+        }
         #touchControls {
-            margin: 10px 0;
+            margin: 10px 0; /* Space above and below buttons */
             display: flex;
             justify-content: center;
             gap: 20px;
-        }
-        #gameCanvas {
-            border: 1px solid #000;
-            max-width: 100%; /* Ensure canvas fits within screen */
-            height: auto; /* Maintain aspect ratio */
         }
         button {
             padding: 10px 20px;
@@ -54,11 +54,11 @@
         <button id="startButton">Start</button>
         <button id="exitButton">Exit</button>
     </div>
+    <canvas id="gameCanvas" width="600" height="800"></canvas>
     <div id="touchControls">
         <button id="leftButton">←</button>
         <button id="rightButton">→</button>
     </div>
-    <canvas id="gameCanvas" width="600" height="800"></canvas>
     <script src="game.js"></script>
 </body>
 </html>
