@@ -1,6 +1,18 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Adjust canvas size for mobile screens
+function resizeCanvas() {
+    const maxWidth = window.innerWidth * 0.9; // 90% of screen width
+    const maxHeight = window.innerHeight * 0.7; // 70% of screen height
+    canvas.width = Math.min(600, maxWidth);
+    canvas.height = Math.min(800, maxHeight);
+    basket.x = canvas.width / 2 - basket.width / 2; // Recenter basket
+    basket.y = canvas.height - 100; // Adjust basket position
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas(); // Initial call
+
 // Preload audio files for letters A to Z
 const letterSounds = {};
 for (let i = 65; i <= 90; i++) {
@@ -75,7 +87,7 @@ leftButton.addEventListener('touchend', () => touchControls.left = false);
 rightButton.addEventListener('touchstart', () => touchControls.right = true);
 rightButton.addEventListener('touchend', () => touchControls.right = false);
 
-// Prevent default touch behavior on canvas (e.g., scrolling)
+// Prevent default touch behavior on canvas
 canvas.addEventListener('touchstart', (e) => e.preventDefault());
 canvas.addEventListener('touchmove', (e) => e.preventDefault());
 
