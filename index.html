@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Letter Catch Game</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            overflow: hidden;
+            touch-action: none; /* Prevents default touch actions like scrolling */
+        }
+        #gameControls {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+        #gameCanvas {
+            border: 1px solid #000;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            touch-action: manipulation; /* Ensures buttons respond to touch */
+        }
+        #touchControls {
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        #leftButton, #rightButton {
+            width: 80px;
+            height: 80px;
+            font-size: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameControls">
+        <button id="startButton">Start</button>
+        <button id="exitButton">Exit</button>
+    </div>
+    <canvas id="gameCanvas" width="600" height="800"></canvas>
+    <div id="touchControls">
+        <button id="leftButton">←</button>
+        <button id="rightButton">→</button>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
