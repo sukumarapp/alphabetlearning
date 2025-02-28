@@ -1,17 +1,16 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Adjust canvas size for mobile screens
+// Dynamically set canvas size
 function resizeCanvas() {
-    const maxWidth = window.innerWidth * 0.9; // 90% of screen width
-    const maxHeight = window.innerHeight * 0.7; // 70% of screen height
-    canvas.width = Math.min(600, maxWidth);
-    canvas.height = Math.min(800, maxHeight);
-    basket.x = canvas.width / 2 - basket.width / 2; // Recenter basket
-    basket.y = canvas.height - 100; // Adjust basket position
+    const container = document.getElementById('gameContainer');
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+    basket.x = canvas.width / 2 - basket.width / 2;
+    basket.y = canvas.height - 100;
 }
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas(); // Initial call
+resizeCanvas(); // Initial resize
 
 // Preload audio files for letters A to Z
 const letterSounds = {};
@@ -32,7 +31,7 @@ let basket = {
     y: canvas.height - 100,
     width: 150,
     height: 75,
-    speed: 5
+    speed: 10 // Increased for smoother touch control
 };
 let letters = [];
 let currentLetter = 'A';
@@ -41,8 +40,8 @@ let gameState = 'paused'; // 'paused', 'running', 'ended'
 let spawnInterval;
 let caughtLetter = null;
 
-// Touch controls
-let touchControls = {
+// Touch/movement controls
+let movement = {
     left: false,
     right: false
 };
@@ -81,23 +80,29 @@ exitButton.addEventListener('click', () => {
     startButton.textContent = 'Restart';
 });
 
-// Touch event listeners for control buttons
-leftButton.addEventListener('touchstart', () => touchControls.left = true);
-leftButton.addEventListener('touchend', () => touchControls.left = false);
-rightButton.addEventListener('touchstart', () => touchControls.right = true);
-rightButton.addEventListener('touchend', () => touchControls.right = false);
+// Touch controls
+leftButton.addEventListener('touchstart', () => movement.left = true);
+leftButton.addEventListener('touchend', () => movement.left = false);
+rightButton.addEventListener('touchstart', () => movement.right = true);
+rightButton.addEventListener('touchend', () => movement.right = false);
 
-// Prevent default touch behavior on canvas
-canvas.addEventListener('touchstart', (e) => e.preventDefault());
-canvas.addEventListener('touchmove', (e) => e.preventDefault());
+// Keyboard controls (for desktop compatibility)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') movement.left = true;
+    if (e.key === 'ArrowRight') movement.right = true;
+});
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft') movement.left = false;
+    if (e.key === 'ArrowRight') movement.right = false;
+});
 
-// Move basket based on touch controls
+// Move basket
 function moveBasket() {
     if (gameState !== 'running') return;
-    if (touchControls.left && basket.x > 0) {
+    if (movement.left && basket.x > 0) {
         basket.x -= basket.speed;
     }
-    if (touchControls.right && basket.x + basket.width < canvas.width) {
+    if (movement.right && basket.x + basket.width < canvas.width) {
         basket.x += basket.speed;
     }
 }
@@ -110,7 +115,7 @@ function spawnLetter() {
             x: Math.random() * (canvas.width - 50),
             y: -50,
             text: currentLetter,
-            speed: 2
+            speed: 2 * (canvas.height / 800) // Scale speed with canvas height
         };
         letters.push(letter);
     }
@@ -136,7 +141,7 @@ function update() {
     }
 
     ctx.fillStyle = 'white';
-    ctx.font = '30px Arial';
+    ctx.font = `${30 * (canvas.width / 600)}px Arial`; // Scale font size
     ctx.fillText(`Score: ${score}`, 10, 40);
 
     if (gameState === 'running') {
@@ -145,26 +150,27 @@ function update() {
         // Draw and update falling letters
         letters.forEach((letter, index) => {
             letter.y += letter.speed;
-            ctx.font = '100px Arial Black';
+            ctx.font = `${100 * (canvas.width / 600)}px Arial Black`;
             ctx.fillStyle = 'orange';
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 2;
             ctx.fillText(letter.text, letter.x, letter.y);
             ctx.strokeText(letter.text, letter.x, letter.y);
 
-            // Collision detection
+            // Collision detection (adjusted for scaling)
+            const letterSize = 60 * (canvas.width / 600);
             if (
-                letter.y + 60 > basket.y + basket.height * 0.5 &&
+                letter.y + letterSize > basket.y + basket.height * 0.5 &&
                 letter.y < basket.y + basket.height &&
-                letter.x + 30 > basket.x &&
-                letter.x + 60 < basket.x + basket.width
+                letter.x + letterSize / 2 > basket.x &&
+                letter.x + letterSize < basket.x + basket.width
             ) {
                 if (letter.text === currentLetter && !caughtLetter) {
                     score++;
                     playLetterSound(letter.text);
                     caughtLetter = {
                         text: letter.text,
-                        x: basket.x + basket.width / 2 - 30,
+                        x: basket.x + basket.width / 2 - 30 * (canvas.width / 600),
                         y: basket.y + basket.height / 2,
                         timeCaught: Date.now()
                     };
@@ -179,15 +185,17 @@ function update() {
 
         // Handle caught letter
         if (caughtLetter) {
-            ctx.font = '100px Arial Black';
+            ctx.font = `${100 * (canvas.width / 600)}px Arial Black`;
             ctx.fillStyle = 'green';
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 2;
             ctx.fillText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
             ctx.strokeText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
 
-            caughtLetter.x = basket.x + basket.width / 2 - 40;
+            // Move caught letter with basket
+            caughtLetter.x = basket.x + basket.width / 2 - 40 * (canvas.width / 600);
 
+            // Check if 3 seconds have passed
             if (Date.now() - caughtLetter.timeCaught >= 3000) {
                 updateCurrentLetter();
                 caughtLetter = null;
@@ -197,9 +205,9 @@ function update() {
 
     if (gameState === 'ended') {
         ctx.fillStyle = 'black';
-        ctx.font = '50px Arial';
-        ctx.fillText('Game Over', canvas.width / 2 - 130, canvas.height / 2);
-        ctx.fillText(`Score: ${score}`, canvas.width / 2 - 80, canvas.height / 2 + 60);
+        ctx.font = `${50 * (canvas.width / 600)}px Arial`;
+        ctx.fillText('Game Over', canvas.width / 2 - 130 * (canvas.width / 600), canvas.height / 2);
+        ctx.fillText(`Score: ${score}`, canvas.width / 2 - 80 * (canvas.width / 600), canvas.height / 2 + 60);
     }
 
     requestAnimationFrame(update);
