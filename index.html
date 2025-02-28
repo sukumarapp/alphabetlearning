@@ -10,35 +10,37 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh; /* Use min-height instead of height */
             background-color: #f0f0f0;
-            overflow: hidden;
-            touch-action: none; /* Prevents default touch actions like scrolling */
+            overflow-y: auto; /* Allow scrolling if needed */
+            touch-action: none; /* Prevent default touch actions */
         }
         #gameControls {
-            margin-top: 10px;
+            margin: 10px 0;
             display: flex;
             justify-content: center;
             gap: 10px;
         }
+        #touchControls {
+            margin: 10px 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
         #gameCanvas {
             border: 1px solid #000;
+            max-width: 100%; /* Ensure canvas fits within screen */
+            height: auto; /* Maintain aspect ratio */
         }
         button {
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
-            touch-action: manipulation; /* Ensures buttons respond to touch */
-        }
-        #touchControls {
-            margin-top: 10px;
-            display: flex;
-            justify-content: center;
-            gap: 20px;
+            touch-action: manipulation;
         }
         #leftButton, #rightButton {
-            width: 80px;
-            height: 80px;
+            width: 60px;
+            height: 60px;
             font-size: 20px;
             background-color: #4CAF50;
             color: white;
@@ -52,11 +54,11 @@
         <button id="startButton">Start</button>
         <button id="exitButton">Exit</button>
     </div>
-    <canvas id="gameCanvas" width="600" height="800"></canvas>
     <div id="touchControls">
         <button id="leftButton">←</button>
         <button id="rightButton">→</button>
     </div>
+    <canvas id="gameCanvas" width="600" height="800"></canvas>
     <script src="game.js"></script>
 </body>
 </html>
