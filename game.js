@@ -50,6 +50,12 @@ startButton.addEventListener('click', () => {
         gameState = 'running';
         startButton.textContent = 'Pause';
         spawnLetters();
+        // Unlock audio context for iOS Safari
+        Object.values(letterSounds).forEach(sound => {
+            sound.play().catch(() => {}); // Silent catch for initial play
+            sound.pause();
+            sound.currentTime = 0; // Reset to start
+        });
     } else if (gameState === 'running') {
         gameState = 'paused';
         startButton.textContent = 'Start';
@@ -62,6 +68,12 @@ startButton.addEventListener('click', () => {
         letters = [];
         caughtLetter = null;
         spawnLetters();
+        // Unlock audio context for iOS Safari
+        Object.values(letterSounds).forEach(sound => {
+            sound.play().catch(() => {}); // Silent catch for initial play
+            sound.pause();
+            sound.currentTime = 0; // Reset to start
+        });
     }
 });
 
@@ -227,7 +239,7 @@ function update() {
 function playLetterSound(letter) {
     const sound = letterSounds[letter];
     sound.currentTime = 0;
-    sound.play();
+    sound.play().catch(error => console.log('Audio play failed:', error));
 }
 
 function updateCurrentLetter() {
