@@ -1,16 +1,13 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Dynamically set canvas size
+// Set canvas size dynamically
 function resizeCanvas() {
-    const container = document.getElementById('gameContainer');
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    basket.x = canvas.width / 2 - basket.width / 2;
-    basket.y = canvas.height - 100;
+    canvas.width = Math.min(600, window.innerWidth * 0.95);
+    canvas.height = Math.min(800, window.innerHeight * 0.8);
 }
+resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
-resizeCanvas(); // Initial resize
 
 // Preload audio files for letters A to Z
 const letterSounds = {};
@@ -31,26 +28,22 @@ let basket = {
     y: canvas.height - 100,
     width: 150,
     height: 75,
-    speed: 10 // Increased for smoother touch control
+    speed: 10 // Increased for smoother touch movement
 };
 let letters = [];
 let currentLetter = 'A';
 let score = 0;
-let gameState = 'paused'; // 'paused', 'running', 'ended'
+let gameState = 'paused';
 let spawnInterval;
 let caughtLetter = null;
 
-// Touch/movement controls
-let movement = {
-    left: false,
-    right: false
-};
+// Controls
+let keys = { left: false, right: false };
+let touchX = null;
 
 // Button controls
 const startButton = document.getElementById('startButton');
 const exitButton = document.getElementById('exitButton');
-const leftButton = document.getElementById('leftButton');
-const rightButton = document.getElementById('rightButton');
 
 startButton.addEventListener('click', () => {
     if (gameState === 'paused') {
@@ -80,30 +73,55 @@ exitButton.addEventListener('click', () => {
     startButton.textContent = 'Restart';
 });
 
-// Touch controls
-leftButton.addEventListener('touchstart', () => movement.left = true);
-leftButton.addEventListener('touchend', () => movement.left = false);
-rightButton.addEventListener('touchstart', () => movement.right = true);
-rightButton.addEventListener('touchend', () => movement.right = false);
-
-// Keyboard controls (for desktop compatibility)
+// Keyboard controls
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') movement.left = true;
-    if (e.key === 'ArrowRight') movement.right = true;
+    if (e.key === 'ArrowLeft') keys.left = true;
+    if (e.key === 'ArrowRight') keys.right = true;
 });
 document.addEventListener('keyup', (e) => {
-    if (e.key === 'ArrowLeft') movement.left = false;
-    if (e.key === 'ArrowRight') movement.right = false;
+    if (e.key === 'ArrowLeft') keys.left = false;
+    if (e.key === 'ArrowRight') keys.right = false;
+});
+
+// Touch controls
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    touchX = touch.clientX - canvas.offsetLeft;
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    touchX = touch.clientX - canvas.offsetLeft;
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+    touchX = null;
 });
 
 // Move basket
 function moveBasket() {
     if (gameState !== 'running') return;
-    if (movement.left && basket.x > 0) {
+
+    // Keyboard movement
+    if (keys.left && basket.x > 0) {
         basket.x -= basket.speed;
     }
-    if (movement.right && basket.x + basket.width < canvas.width) {
+    if (keys.right && basket.x + basket.width < canvas.width) {
         basket.x += basket.speed;
+    }
+
+    // Touch movement
+    if (touchX !== null) {
+        const targetX = touchX - basket.width / 2;
+        if (targetX > 0 && targetX + basket.width < canvas.width) {
+            basket.x = targetX;
+        } else if (targetX <= 0) {
+            basket.x = 0;
+        } else {
+            basket.x = canvas.width - basket.width;
+        }
     }
 }
 
@@ -115,13 +133,12 @@ function spawnLetter() {
             x: Math.random() * (canvas.width - 50),
             y: -50,
             text: currentLetter,
-            speed: 2 * (canvas.height / 800) // Scale speed with canvas height
+            speed: 2
         };
         letters.push(letter);
     }
 }
 
-// Start spawning letters
 function spawnLetters() {
     spawnInterval = setInterval(spawnLetter, 2000);
 }
@@ -141,36 +158,33 @@ function update() {
     }
 
     ctx.fillStyle = 'white';
-    ctx.font = `${30 * (canvas.width / 600)}px Arial`; // Scale font size
+    ctx.font = '30px Arial';
     ctx.fillText(`Score: ${score}`, 10, 40);
 
     if (gameState === 'running') {
         moveBasket();
 
-        // Draw and update falling letters
         letters.forEach((letter, index) => {
             letter.y += letter.speed;
-            ctx.font = `${100 * (canvas.width / 600)}px Arial Black`;
+            ctx.font = '100px Arial Black';
             ctx.fillStyle = 'orange';
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 2;
             ctx.fillText(letter.text, letter.x, letter.y);
             ctx.strokeText(letter.text, letter.x, letter.y);
 
-            // Collision detection (adjusted for scaling)
-            const letterSize = 60 * (canvas.width / 600);
             if (
-                letter.y + letterSize > basket.y + basket.height * 0.5 &&
+                letter.y + 60 > basket.y + basket.height * 0.5 &&
                 letter.y < basket.y + basket.height &&
-                letter.x + letterSize / 2 > basket.x &&
-                letter.x + letterSize < basket.x + basket.width
+                letter.x + 30 > basket.x &&
+                letter.x + 60 < basket.x + basket.width
             ) {
                 if (letter.text === currentLetter && !caughtLetter) {
                     score++;
                     playLetterSound(letter.text);
                     caughtLetter = {
                         text: letter.text,
-                        x: basket.x + basket.width / 2 - 30 * (canvas.width / 600),
+                        x: basket.x + basket.width / 2 - 30,
                         y: basket.y + basket.height / 2,
                         timeCaught: Date.now()
                     };
@@ -183,19 +197,16 @@ function update() {
             }
         });
 
-        // Handle caught letter
         if (caughtLetter) {
-            ctx.font = `${100 * (canvas.width / 600)}px Arial Black`;
+            ctx.font = '100px Arial Black';
             ctx.fillStyle = 'green';
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 2;
             ctx.fillText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
             ctx.strokeText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
 
-            // Move caught letter with basket
-            caughtLetter.x = basket.x + basket.width / 2 - 40 * (canvas.width / 600);
+            caughtLetter.x = basket.x + basket.width / 2 - 40;
 
-            // Check if 3 seconds have passed
             if (Date.now() - caughtLetter.timeCaught >= 3000) {
                 updateCurrentLetter();
                 caughtLetter = null;
@@ -205,22 +216,20 @@ function update() {
 
     if (gameState === 'ended') {
         ctx.fillStyle = 'black';
-        ctx.font = `${50 * (canvas.width / 600)}px Arial`;
-        ctx.fillText('Game Over', canvas.width / 2 - 130 * (canvas.width / 600), canvas.height / 2);
-        ctx.fillText(`Score: ${score}`, canvas.width / 2 - 80 * (canvas.width / 600), canvas.height / 2 + 60);
+        ctx.font = '50px Arial';
+        ctx.fillText('Game Over', canvas.width / 2 - 130, canvas.height / 2);
+        ctx.fillText(`Score: ${score}`, canvas.width / 2 - 80, canvas.height / 2 + 60);
     }
 
     requestAnimationFrame(update);
 }
 
-// Play the sound for the caught letter
 function playLetterSound(letter) {
     const sound = letterSounds[letter];
     sound.currentTime = 0;
     sound.play();
 }
 
-// Update to the next letter (A to Z), end game after Z
 function updateCurrentLetter() {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const currentIndex = alphabet.indexOf(currentLetter);
@@ -235,5 +244,4 @@ function updateCurrentLetter() {
     }
 }
 
-// Start the game loop
 update();
