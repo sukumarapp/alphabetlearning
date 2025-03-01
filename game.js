@@ -16,6 +16,7 @@ for (let i = 65; i <= 90; i++) {
     const letter = String.fromCharCode(i);
     letterSounds[letter] = new Audio(`${letter}.mp3`);
     letterSounds[letter].preload = 'auto'; // Ensure preloading
+    letterSounds[letter].muted = true; // Start muted for unlocking
 }
 
 // Preload images
@@ -52,7 +53,7 @@ startButton.addEventListener('click', () => {
         gameState = 'running';
         startButton.textContent = 'Pause';
         spawnLetters();
-        unlockAudio(); // Attempt to unlock audio on user gesture
+        unlockAudio(); // Unlock audio silently
     } else if (gameState === 'running') {
         gameState = 'paused';
         startButton.textContent = 'Start';
@@ -65,7 +66,7 @@ startButton.addEventListener('click', () => {
         letters = [];
         caughtLetter = null;
         spawnLetters();
-        unlockAudio(); // Attempt to unlock audio on user gesture
+        unlockAudio(); // Unlock audio silently
     }
 });
 
@@ -148,15 +149,22 @@ function spawnLetters() {
 // Audio unlock function
 function unlockAudio() {
     if (isAudioUnlocked) return;
-    Object.values(letterSounds).forEach(sound => {
-        sound.play().then(() => {
+
+    // Unlock audio by playing muted sounds
+    const promises = Object.values(letterSounds).map(sound => {
+        sound.muted = true; // Ensure muted
+        return sound.play().then(() => {
             sound.pause();
             sound.currentTime = 0;
-            isAudioUnlocked = true;
-            console.log('Audio unlocked successfully');
+            sound.muted = false; // Unmute for later use
         }).catch(error => {
             console.log('Audio unlock failed:', error);
         });
+    });
+
+    Promise.all(promises).then(() => {
+        isAudioUnlocked = true;
+        console.log('Audio context unlocked silently');
     });
 }
 
@@ -244,10 +252,10 @@ function update() {
 function playLetterSound(letter) {
     const sound = letterSounds[letter];
     sound.currentTime = 0;
+    sound.muted = false; // Ensure unmuted for playback
     sound.play().catch(error => {
         console.log(`Failed to play sound for ${letter}:`, error);
-        // Attempt to unlock audio again if failed
-        if (!isAudioUnlocked) unlockAudio();
+        if (!isAudioUnlocked) unlockAudio(); // Retry if not unlocked
     });
 }
 
