@@ -16,8 +16,9 @@ for (let i = 65; i <= 90; i++) {
     const letter = String.fromCharCode(i);
     letterSounds[letter] = new Audio(`${letter}.mp3`);
     letterSounds[letter].preload = 'auto'; // Ensure preloading
-    letterSounds[letter].muted = true; // Start muted for unlocking
 }
+// Add a silent audio buffer for unlocking
+const silentAudio = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
 
 // Preload images
 const basketImage = new Image();
@@ -53,7 +54,7 @@ startButton.addEventListener('click', () => {
         gameState = 'running';
         startButton.textContent = 'Pause';
         spawnLetters();
-        unlockAudio(); // Unlock audio silently
+        unlockAudio(); // Attempt to unlock audio on user gesture
     } else if (gameState === 'running') {
         gameState = 'paused';
         startButton.textContent = 'Start';
@@ -66,7 +67,7 @@ startButton.addEventListener('click', () => {
         letters = [];
         caughtLetter = null;
         spawnLetters();
-        unlockAudio(); // Unlock audio silently
+        unlockAudio(); // Attempt to unlock audio on user gesture
     }
 });
 
@@ -146,25 +147,17 @@ function spawnLetters() {
     spawnInterval = setInterval(spawnLetter, 2000);
 }
 
-// Audio unlock function
+// Audio unlock function using silent audio
 function unlockAudio() {
     if (isAudioUnlocked) return;
-
-    // Unlock audio by playing muted sounds
-    const promises = Object.values(letterSounds).map(sound => {
-        sound.muted = true; // Ensure muted
-        return sound.play().then(() => {
-            sound.pause();
-            sound.currentTime = 0;
-            sound.muted = false; // Unmute for later use
-        }).catch(error => {
-            console.log('Audio unlock failed:', error);
-        });
-    });
-
-    Promise.all(promises).then(() => {
+    
+    silentAudio.play().then(() => {
+        silentAudio.pause();
+        silentAudio.currentTime = 0;
         isAudioUnlocked = true;
-        console.log('Audio context unlocked silently');
+        console.log('Audio unlocked successfully');
+    }).catch(error => {
+        console.log('Audio unlock failed:', error);
     });
 }
 
@@ -250,12 +243,22 @@ function update() {
 }
 
 function playLetterSound(letter) {
+    if (!isAudioUnlocked) {
+        unlockAudio();
+        // Give a small delay to ensure unlocking completes
+        setTimeout(() => {
+            playSound(letter);
+        }, 100);
+    } else {
+        playSound(letter);
+    }
+}
+
+function playSound(letter) {
     const sound = letterSounds[letter];
     sound.currentTime = 0;
-    sound.muted = false; // Ensure unmuted for playback
     sound.play().catch(error => {
         console.log(`Failed to play sound for ${letter}:`, error);
-        if (!isAudioUnlocked) unlockAudio(); // Retry if not unlocked
     });
 }
 
