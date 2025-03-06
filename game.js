@@ -1,4 +1,3 @@
-// game.js
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -10,138 +9,66 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// Audio system variables
-let audioContext;
-let audioBuffers = {};
-let soundsLoaded = false;
-let audioInitialized = false;
-
-// Create loading overlay
-const loadingOverlay = document.createElement('div');
-loadingOverlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    z-index: 1000;
-`;
-loadingOverlay.innerHTML = `
-    <div style="color:white; font-size:24px; margin-bottom:20px;">Tap to Start Game with Sound</div>
-    <button id="unlockAudio" style="padding:15px 30px; font-size:18px; background:#4CAF50; color:white; border:none; border-radius:5px;">START</button>
-`;
-document.body.appendChild(loadingOverlay);
-
-// Initialize audio system
-document.getElementById('unlockAudio').addEventListener('click', initAudioSystem);
-
-async function initAudioSystem() {
-    if (audioInitialized) return;
-    
-    try {
-        window.AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioContext();
-        
-        await loadLetterSounds();
-        soundsLoaded = true;
-        audioInitialized = true;
-        loadingOverlay.style.display = 'none';
-        console.log("Audio system initialized");
-
-        // Add audio resume listeners
-        ['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(event => {
-            document.addEventListener(event, resumeAudioContext);
-        });
-    } catch (error) {
-        console.error("Audio initialization failed:", error);
-        loadingOverlay.innerHTML = `<div style="color:red">Error loading audio: ${error.message}</div>`;
-    }
+// Preload audio files for letters A to Z
+const letterSounds = {};
+let isAudioUnlocked = false; // Track if audio context is unlocked
+for (let i = 65; i <= 90; i++) {
+    const letter = String.fromCharCode(i);
+    letterSounds[letter] = new Audio(`${letter}.mp3`);
+    letterSounds[letter].preload = 'auto'; // Ensure preloading
 }
 
-async function loadLetterSounds() {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const promises = [];
-    
-    for (const letter of alphabet) {
-        const promise = fetch(`${letter}.mp3`)
-            .then(response => {
-                if (!response.ok) throw new Error(`Failed to load ${letter}.mp3`);
-                return response.arrayBuffer();
-            })
-            .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
-            .then(audioBuffer => {
-                audioBuffers[letter] = audioBuffer;
-            })
-            .catch(error => {
-                console.error(`Error loading ${letter}:`, error);
-                throw error;
-            });
-        promises.push(promise);
-    }
-    
-    await Promise.all(promises);
-}
+// Preload images
+const basketImage = new Image();
+basketImage.src = 'basket.png';
+const backgroundImage = new Image();
+backgroundImage.src = 'background.jpg';
 
-function resumeAudioContext() {
-    if (audioContext && audioContext.state === 'suspended') {
-        audioContext.resume().catch(error => {
-            console.error("Error resuming audio:", error);
-        });
-    }
-}
-
-function playSound(letter) {
-    if (!soundsLoaded || !audioBuffers[letter]) return;
-    
-    if (audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
-            playSoundBuffer(letter);
-        });
-    } else {
-        playSoundBuffer(letter);
-    }
-}
-
-function playSoundBuffer(letter) {
-    try {
-        const source = audioContext.createBufferSource();
-        source.buffer = audioBuffers[letter];
-        source.connect(audioContext.destination);
-        source.start(0);
-    } catch (error) {
-        console.error("Error playing sound:", error);
-    }
-}
-
-// Game variables and state
-const basket = { x: 0, y: 0, width: 150, height: 75, speed: 10 };
+// Game variables
+let basket = {
+    x: canvas.width / 2 - 75,
+    y: canvas.height - 100,
+    width: 150,
+    height: 75,
+    speed: 10
+};
 let letters = [];
 let currentLetter = 'A';
 let score = 0;
 let gameState = 'paused';
 let spawnInterval;
 let caughtLetter = null;
+
+// Controls
 let keys = { left: false, right: false };
 let touchX = null;
 
-// Preload images
-const images = {
-    basket: new Image(),
-    background: new Image()
-};
-images.basket.src = 'basket.png';
-images.background.src = 'background.jpg';
-
-// Game controls setup
+// Button controls
 const startButton = document.getElementById('startButton');
 const exitButton = document.getElementById('exitButton');
 
-startButton.addEventListener('click', handleGameControl);
+startButton.addEventListener('click', () => {
+    if (gameState === 'paused') {
+        gameState = 'running';
+        startButton.textContent = 'Pause';
+        spawnLetters();
+        unlockAudio(); // Attempt to unlock audio on user gesture
+    } else if (gameState === 'running') {
+        gameState = 'paused';
+        startButton.textContent = 'Start';
+        clearInterval(spawnInterval);
+    } else if (gameState === 'ended') {
+        gameState = 'running';
+        startButton.textContent = 'Pause';
+        score = 0;
+        currentLetter = 'A';
+        letters = [];
+        caughtLetter = null;
+        spawnLetters();
+        unlockAudio(); // Attempt to unlock audio on user gesture
+    }
+});
+
 exitButton.addEventListener('click', () => {
     gameState = 'ended';
     clearInterval(spawnInterval);
@@ -150,204 +77,192 @@ exitButton.addEventListener('click', () => {
     startButton.textContent = 'Restart';
 });
 
-document.addEventListener('keydown', handleKey(true));
-document.addEventListener('keyup', handleKey(false));
+// Keyboard controls
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') keys.left = true;
+    if (e.key === 'ArrowRight') keys.right = true;
+});
+document.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft') keys.left = false;
+    if (e.key === 'ArrowRight') keys.right = false;
+});
 
-canvas.addEventListener('touchstart', handleTouch(true));
-canvas.addEventListener('touchmove', handleTouch(true));
-canvas.addEventListener('touchend', handleTouch(false));
+// Touch controls
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    touchX = touch.clientX - canvas.offsetLeft;
+}, { passive: false });
 
-function handleGameControl() {
-    if (!audioInitialized) {
-        initAudioSystem().then(() => {
-            if (gameState === 'paused') startGame();
-        });
-        return;
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    touchX = touch.clientX - canvas.offsetLeft;
+}, { passive: false });
+
+canvas.addEventListener('touchend', () => {
+    touchX = null;
+});
+
+// Move basket
+function moveBasket() {
+    if (gameState !== 'running') return;
+
+    if (keys.left && basket.x > 0) {
+        basket.x -= basket.speed;
     }
-    
-    if (gameState === 'paused') {
-        startGame();
-    } else if (gameState === 'running') {
-        pauseGame();
-    } else if (gameState === 'ended') {
-        resetGame();
+    if (keys.right && basket.x + basket.width < canvas.width) {
+        basket.x += basket.speed;
     }
-}
 
-function startGame() {
-    gameState = 'running';
-    startButton.textContent = 'Pause';
-    spawnInterval = setInterval(spawnLetter, 2000);
-    basket.x = canvas.width/2 - basket.width/2;
-    basket.y = canvas.height - 100;
-}
-
-function pauseGame() {
-    gameState = 'paused';
-    startButton.textContent = 'Start';
-    clearInterval(spawnInterval);
-}
-
-function resetGame() {
-    score = 0;
-    currentLetter = 'A';
-    letters = [];
-    caughtLetter = null;
-    startGame();
-}
-
-function handleKey(isDown) {
-    return (e) => {
-        if (e.key === 'ArrowLeft') keys.left = isDown;
-        if (e.key === 'ArrowRight') keys.right = isDown;
-    };
-}
-
-function handleTouch(isActive) {
-    return (e) => {
-        e.preventDefault();
-        if (isActive && e.touches) {
-            touchX = e.touches[0].clientX - canvas.offsetLeft;
-        } else {
-            touchX = null;
-        }
-    };
-}
-
-// Game logic
-function spawnLetter() {
-    if (caughtLetter?.text === currentLetter) return;
-    
-    const letter = {
-        x: Math.random() * (canvas.width - 50),
-        y: -50,
-        text: currentLetter,
-        speed: 2 + score * 0.1
-    };
-    letters.push(letter);
-}
-
-function updateBasketPosition() {
     if (touchX !== null) {
-        basket.x = Math.max(0, Math.min(
-            touchX - basket.width/2,
-            canvas.width - basket.width
-        ));
-    } else {
-        if (keys.left) basket.x = Math.max(0, basket.x - basket.speed);
-        if (keys.right) basket.x = Math.min(
-            canvas.width - basket.width,
-            basket.x + basket.speed
-        );
+        const targetX = touchX - basket.width / 2;
+        if (targetX > 0 && targetX + basket.width < canvas.width) {
+            basket.x = targetX;
+        } else if (targetX <= 0) {
+            basket.x = 0;
+        } else {
+            basket.x = canvas.width - basket.width;
+        }
     }
 }
 
-function checkCollisions() {
-    letters.forEach((letter, index) => {
-        letter.y += letter.speed;
-        
-        const collision = (
-            letter.y + 60 > basket.y &&
-            letter.x + 30 > basket.x &&
-            letter.x + 30 < basket.x + basket.width
-        );
-        
-        if (collision) {
-            if (letter.text === currentLetter) {
-                handleCorrectLetter(letter);
-            }
-            letters.splice(index, 1);
-        } else if (letter.y > canvas.height) {
-            letters.splice(index, 1);
-        }
+// Spawn a new letter
+function spawnLetter() {
+    if (gameState !== 'running') return;
+    if (!caughtLetter || caughtLetter.text !== currentLetter) {
+        const letter = {
+            x: Math.random() * (canvas.width - 50),
+            y: -50,
+            text: currentLetter,
+            speed: 2
+        };
+        letters.push(letter);
+    }
+}
+
+function spawnLetters() {
+    spawnInterval = setInterval(spawnLetter, 2000);
+}
+
+// Audio unlock function
+function unlockAudio() {
+    if (isAudioUnlocked) return;
+    Object.values(letterSounds).forEach(sound => {
+        sound.play().then(() => {
+            sound.pause();
+            sound.currentTime = 0;
+            isAudioUnlocked = true;
+            console.log('Audio unlocked successfully');
+        }).catch(error => {
+            console.log('Audio unlock failed:', error);
+        });
     });
 }
 
-function handleCorrectLetter(letter) {
-    score++;
-    playSound(letter.text);
-    caughtLetter = {
-        text: letter.text,
-        x: basket.x + basket.width/2 - 30,
-        y: basket.y + basket.height/2,
-        timeCaught: Date.now()
-    };
-    setTimeout(advanceLetter, 3000);
-}
-
-function advanceLetter() {
-    const nextChar = String.fromCharCode(currentLetter.charCodeAt(0) + 1);
-    currentLetter = nextChar <= 'Z' ? nextChar : 'A';
-    caughtLetter = null;
-    
-    if (currentLetter === 'A') {
-        gameState = 'ended';
-        startButton.textContent = 'Restart';
-    }
-}
-
-// Rendering
-function draw() {
-    // Clear canvas
+// Game loop
+function update() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw background
-    if (images.background.complete) {
-        ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+    if (backgroundImage.complete) {
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
     }
-    
-    // Draw basket
-    if (images.basket.complete) {
-        ctx.drawImage(images.basket, basket.x, basket.y, basket.width, basket.height);
+
+    if (basketImage.complete) {
+        ctx.drawImage(basketImage, basket.x, basket.y, basket.width, basket.height);
     } else {
         ctx.fillStyle = 'blue';
         ctx.fillRect(basket.x, basket.y, basket.width, basket.height);
     }
-    
-    // Draw letters
-    letters.forEach(letter => {
-        ctx.font = '100px Arial Black';
-        ctx.fillStyle = 'orange';
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 2;
-        ctx.fillText(letter.text, letter.x, letter.y);
-        ctx.strokeText(letter.text, letter.x, letter.y);
-    });
-    
-    // Draw caught letter
-    if (caughtLetter) {
-        ctx.fillStyle = 'green';
-        ctx.fillText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
-        ctx.strokeText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
-    }
-    
-    // Draw UI
+
     ctx.fillStyle = 'white';
     ctx.font = '30px Arial';
     ctx.fillText(`Score: ${score}`, 10, 40);
-    ctx.fillText(`Current Letter: ${currentLetter}`, 10, 80);
-    
-    if (gameState === 'ended') {
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = 'white';
-        ctx.font = '50px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('Game Over!', canvas.width/2, canvas.height/2);
-        ctx.fillText(`Final Score: ${score}`, canvas.width/2, canvas.height/2 + 60);
-        ctx.textAlign = 'left';
-    }
-}
 
-// Game loop
-function gameLoop() {
     if (gameState === 'running') {
-        updateBasketPosition();
-        checkCollisions();
+        moveBasket();
+
+        letters.forEach((letter, index) => {
+            letter.y += letter.speed;
+            ctx.font = '100px Arial Black';
+            ctx.fillStyle = 'orange';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.fillText(letter.text, letter.x, letter.y);
+            ctx.strokeText(letter.text, letter.x, letter.y);
+
+            if (
+                letter.y + 60 > basket.y + basket.height * 0.5 &&
+                letter.y < basket.y + basket.height &&
+                letter.x + 30 > basket.x &&
+                letter.x + 60 < basket.x + basket.width
+            ) {
+                if (letter.text === currentLetter && !caughtLetter) {
+                    score++;
+                    playLetterSound(letter.text);
+                    caughtLetter = {
+                        text: letter.text,
+                        x: basket.x + basket.width / 2 - 30,
+                        y: basket.y + basket.height / 2,
+                        timeCaught: Date.now()
+                    };
+                    letters = letters.filter(l => l.text !== currentLetter);
+                }
+            }
+
+            if (letter.y > canvas.height) {
+                letters.splice(index, 1);
+            }
+        });
+
+        if (caughtLetter) {
+            ctx.font = '100px Arial Black';
+            ctx.fillStyle = 'green';
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.fillText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
+            ctx.strokeText(caughtLetter.text, caughtLetter.x, caughtLetter.y);
+
+            caughtLetter.x = basket.x + basket.width / 2 - 40;
+
+            if (Date.now() - caughtLetter.timeCaught >= 3000) {
+                updateCurrentLetter();
+                caughtLetter = null;
+            }
+        }
     }
-    draw();
-    requestAnimationFrame(gameLoop);
+
+    if (gameState === 'ended') {
+        ctx.fillStyle = 'black';
+        ctx.font = '50px Arial';
+        ctx.fillText('Game Over', canvas.width / 2 - 130, canvas.height / 2);
+        ctx.fillText(`Score: ${score}`, canvas.width / 2 - 80, canvas.height / 2 + 60);
+    }
+
+    requestAnimationFrame(update);
 }
 
-// Start the game loop
-gameLoop();
+function playLetterSound(letter) {
+    const sound = letterSounds[letter];
+    sound.currentTime = 0;
+    sound.play().catch(error => {
+        console.log(`Failed to play sound for ${letter}:`, error);
+        // Attempt to unlock audio again if failed
+        if (!isAudioUnlocked) unlockAudio();
+    });
+}
+
+function updateCurrentLetter() {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const currentIndex = alphabet.indexOf(currentLetter);
+    if (currentIndex < alphabet.length - 1) {
+        currentLetter = alphabet[currentIndex + 1];
+    } else {
+        gameState = 'ended';
+        clearInterval(spawnInterval);
+        letters = [];
+        caughtLetter = null;
+        startButton.textContent = 'Restart';
+    }
+}
+
+update();
