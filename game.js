@@ -9,18 +9,23 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// Preload audio files for letters A to Z
+// Audio setup with Web Audio API fallback
+let audioContext = null;
 const letterSounds = {};
-let audioUnlocked = false; // Flag to track if audio is unlocked
 
-function preloadAudio() {
+function initializeAudio() {
+    // Use Web Audio API for better iOS compatibility
+    audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+    console.log('AudioContext state:', audioContext.state);
+
+    // Preload audio files
     for (let i = 65; i <= 90; i++) {
         const letter = String.fromCharCode(i);
         letterSounds[letter] = new Audio(`${letter}.mp3`);
-        letterSounds[letter].preload = 'auto'; // Preload audio
+        letterSounds[letter].preload = 'auto';
+        letterSounds[letter].load(); // Explicitly load the audio
     }
 }
-preloadAudio();
 
 // Preload images
 const basketImage = new Image();
@@ -52,8 +57,9 @@ const startButton = document.getElementById('startButton');
 const exitButton = document.getElementById('exitButton');
 
 startButton.addEventListener('click', () => {
-    if (!audioUnlocked) {
-        unlockAudio(); // Unlock audio on first user interaction
+    if (!audioContext) {
+        initializeAudio(); // Initialize audio on first interaction
+        resumeAudioContext(); // Ensure AudioContext is running
     }
     if (gameState === 'paused') {
         gameState = 'running';
@@ -150,15 +156,15 @@ function spawnLetters() {
     spawnInterval = setInterval(spawnLetter, 2000);
 }
 
-// Unlock audio for iOS
-function unlockAudio() {
-    const sound = new Audio(); // Create a dummy sound to unlock audio
-    sound.play().then(() => {
-        audioUnlocked = true;
-        console.log('Audio unlocked successfully');
-    }).catch((error) => {
-        console.log('Audio unlock failed:', error);
-    });
+// Resume AudioContext for iOS
+function resumeAudioContext() {
+    if (audioContext && audioContext.state === 'suspended') {
+        audioContext.resume().then(() => {
+            console.log('AudioContext resumed successfully');
+        }).catch((err) => {
+            console.log('Error resuming AudioContext:', err);
+        });
+    }
 }
 
 // Game loop
@@ -243,12 +249,21 @@ function update() {
 }
 
 function playLetterSound(letter) {
-    if (!audioUnlocked) return; // Don't attempt to play if audio isn't unlocked
+    if (!audioContext) {
+        console.log('AudioContext not initialized yet');
+        return;
+    }
     const sound = letterSounds[letter];
-    sound.currentTime = 0;
-    sound.play().catch((error) => {
-        console.log(`Error playing sound for ${letter}:`, error);
-    });
+    if (sound) {
+        sound.currentTime = 0; // Reset to start
+        sound.play().then(() => {
+            console.log(`Playing sound for ${letter}`);
+        }).catch((error) => {
+            console.log(`Error playing sound for ${letter}:`, error);
+        });
+    } else {
+        console.log(`No sound file loaded for ${letter}`);
+    }
 }
 
 function updateCurrentLetter() {
