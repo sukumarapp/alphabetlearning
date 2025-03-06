@@ -9,41 +9,119 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// Audio context for iOS compatibility
+// Audio system for iOS compatibility
 let audioContext;
+let audioBuffers = {};
+let soundsLoaded = false;
 let audioInitialized = false;
 
-// Preload audio files for letters A to Z
-const letterSounds = {};
-for (let i = 65; i <= 90; i++) {
-    const letter = String.fromCharCode(i);
-    letterSounds[letter] = new Audio(`${letter}.mp3`);
-    // Set preload attribute
-    letterSounds[letter].preload = 'auto';
-}
+// Create a loading overlay to ensure user interaction
+const loadingOverlay = document.createElement('div');
+loadingOverlay.style.position = 'fixed';
+loadingOverlay.style.top = '0';
+loadingOverlay.style.left = '0';
+loadingOverlay.style.width = '100%';
+loadingOverlay.style.height = '100%';
+loadingOverlay.style.backgroundColor = 'rgba(0,0,0,0.8)';
+loadingOverlay.style.display = 'flex';
+loadingOverlay.style.justifyContent = 'center';
+loadingOverlay.style.alignItems = 'center';
+loadingOverlay.style.flexDirection = 'column';
+loadingOverlay.style.zIndex = '1000';
+loadingOverlay.innerHTML = `
+    <div style="color:white; font-size:24px; margin-bottom:20px;">Tap to Start Game with Sound</div>
+    <button id="unlockAudio" style="padding:15px 30px; font-size:18px; background-color:#4CAF50; color:white; border:none; border-radius:5px;">START</button>
+`;
+document.body.appendChild(loadingOverlay);
 
-// Initialize audio context on user interaction
-function initAudio() {
+document.getElementById('unlockAudio').addEventListener('click', function() {
+    initAudioSystem();
+    loadingOverlay.style.display = 'none';
+});
+
+// Initialize audio system for iOS
+function initAudioSystem() {
     if (audioInitialized) return;
     
-    // Create audio context
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+        // Create audio context
+        window.AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContext();
+        
+        // Load all letter sounds
+        loadLetterSounds().then(() => {
+            console.log("All sounds loaded successfully");
+            soundsLoaded = true;
+        }).catch(error => {
+            console.error("Error loading sounds:", error);
+        });
+        
+        audioInitialized = true;
+        console.log("Audio system initialized, context state:", audioContext.state);
+        
+        // For iOS, we need to resume on various user interactions
+        ['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(event => {
+            document.body.addEventListener(event, function() {
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => {
+                        console.log("AudioContext resumed on user interaction");
+                    });
+                }
+            }, { once: true });
+        });
+    } catch (e) {
+        console.error("Could not initialize audio system:", e);
+    }
+}
+
+// Load all letter sounds into audio buffers
+async function loadLetterSounds() {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const loadPromises = [];
     
-    // Resume audio context if it's suspended (for iOS)
+    for (let i = 0; i < alphabet.length; i++) {
+        const letter = alphabet[i];
+        loadPromises.push(
+            fetch(`${letter}.mp3`)
+                .then(response => response.arrayBuffer())
+                .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+                .then(audioBuffer => {
+                    audioBuffers[letter] = audioBuffer;
+                    console.log(`Loaded sound for letter ${letter}`);
+                })
+                .catch(error => console.error(`Error loading sound for ${letter}:`, error))
+        );
+    }
+    
+    return Promise.all(loadPromises);
+}
+
+// Play a sound using the audio buffer system
+function playSound(letter) {
+    if (!audioInitialized || !soundsLoaded) {
+        console.log("Audio not initialized or sounds not loaded yet");
+        return;
+    }
+    
     if (audioContext.state === 'suspended') {
         audioContext.resume();
     }
     
-    // Try to play a silent sound to unlock audio
-    const silentSound = new Audio();
-    silentSound.play().catch(err => {
-        console.log("Silent sound failed to play, but that's okay");
-    });
-    
-    // Mark as initialized
-    audioInitialized = true;
-    
-    console.log("Audio initialized");
+    try {
+        const buffer = audioBuffers[letter];
+        if (!buffer) {
+            console.warn(`No buffer found for letter ${letter}`);
+            return;
+        }
+        
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+        console.log(`Playing sound for letter ${letter}`);
+    } catch (e) {
+        console.error(`Error playing sound for ${letter}:`, e);
+    }
 }
 
 // Preload images
@@ -58,7 +136,7 @@ let basket = {
     y: canvas.height - 100,
     width: 150,
     height: 75,
-    speed: 10 // Increased for smoother touch movement
+    speed: 10
 };
 let letters = [];
 let currentLetter = 'A';
@@ -76,8 +154,10 @@ const startButton = document.getElementById('startButton');
 const exitButton = document.getElementById('exitButton');
 
 startButton.addEventListener('click', () => {
-    // Initialize audio on first user interaction
-    initAudio();
+    // Ensure audio is initialized
+    if (!audioInitialized) {
+        initAudioSystem();
+    }
     
     if (gameState === 'paused') {
         gameState = 'running';
@@ -99,8 +179,9 @@ startButton.addEventListener('click', () => {
 });
 
 exitButton.addEventListener('click', () => {
-    // Also initialize audio here for good measure
-    initAudio();
+    if (!audioInitialized) {
+        initAudioSystem();
+    }
     
     gameState = 'ended';
     clearInterval(spawnInterval);
@@ -111,7 +192,6 @@ exitButton.addEventListener('click', () => {
 
 // Keyboard controls
 document.addEventListener('keydown', (e) => {
-    initAudio(); // Initialize on keyboard interaction too
     if (e.key === 'ArrowLeft') keys.left = true;
     if (e.key === 'ArrowRight') keys.right = true;
 });
@@ -123,7 +203,6 @@ document.addEventListener('keyup', (e) => {
 // Touch controls
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    initAudio(); // Initialize on touch too
     const touch = e.touches[0];
     touchX = touch.clientX - canvas.offsetLeft;
 }, { passive: false });
@@ -219,7 +298,7 @@ function update() {
             ) {
                 if (letter.text === currentLetter && !caughtLetter) {
                     score++;
-                    playLetterSound(letter.text);
+                    playSound(letter.text);
                     caughtLetter = {
                         text: letter.text,
                         x: basket.x + basket.width / 2 - 30,
@@ -260,36 +339,6 @@ function update() {
     }
 
     requestAnimationFrame(update);
-}
-
-// Improved sound playing function for iOS compatibility
-function playLetterSound(letter) {
-    if (!audioInitialized) {
-        initAudio();
-    }
-    
-    const sound = letterSounds[letter];
-    
-    // Reset and play with promise handling
-    sound.currentTime = 0;
-    
-    // Use a promise to handle playback more robustly
-    const playPromise = sound.play();
-    
-    if (playPromise !== undefined) {
-        playPromise.catch(error => {
-            console.error("Error playing sound:", error);
-            
-            // If autoplay was prevented, try to resume the audio context
-            if (audioContext && audioContext.state === 'suspended') {
-                audioContext.resume().then(() => {
-                    console.log("AudioContext resumed");
-                    // Try playing again after resuming
-                    sound.play().catch(e => console.error("Still couldn't play sound:", e));
-                });
-            }
-        });
-    }
 }
 
 function updateCurrentLetter() {
