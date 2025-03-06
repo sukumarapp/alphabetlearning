@@ -9,22 +9,41 @@ function resizeCanvas() {
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
 
-// Audio setup with Web Audio API fallback
-let audioContext = null;
+// Audio context for iOS compatibility
+let audioContext;
+let audioInitialized = false;
+
+// Preload audio files for letters A to Z
 const letterSounds = {};
+for (let i = 65; i <= 90; i++) {
+    const letter = String.fromCharCode(i);
+    letterSounds[letter] = new Audio(`${letter}.mp3`);
+    // Set preload attribute
+    letterSounds[letter].preload = 'auto';
+}
 
-function initializeAudio() {
-    // Use Web Audio API for better iOS compatibility
-    audioContext = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-    console.log('AudioContext state:', audioContext.state);
-
-    // Preload audio files
-    for (let i = 65; i <= 90; i++) {
-        const letter = String.fromCharCode(i);
-        letterSounds[letter] = new Audio(`${letter}.mp3`);
-        letterSounds[letter].preload = 'auto';
-        letterSounds[letter].load(); // Explicitly load the audio
+// Initialize audio context on user interaction
+function initAudio() {
+    if (audioInitialized) return;
+    
+    // Create audio context
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Resume audio context if it's suspended (for iOS)
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
     }
+    
+    // Try to play a silent sound to unlock audio
+    const silentSound = new Audio();
+    silentSound.play().catch(err => {
+        console.log("Silent sound failed to play, but that's okay");
+    });
+    
+    // Mark as initialized
+    audioInitialized = true;
+    
+    console.log("Audio initialized");
 }
 
 // Preload images
@@ -39,7 +58,7 @@ let basket = {
     y: canvas.height - 100,
     width: 150,
     height: 75,
-    speed: 10
+    speed: 10 // Increased for smoother touch movement
 };
 let letters = [];
 let currentLetter = 'A';
@@ -57,10 +76,9 @@ const startButton = document.getElementById('startButton');
 const exitButton = document.getElementById('exitButton');
 
 startButton.addEventListener('click', () => {
-    if (!audioContext) {
-        initializeAudio(); // Initialize audio on first interaction
-        resumeAudioContext(); // Ensure AudioContext is running
-    }
+    // Initialize audio on first user interaction
+    initAudio();
+    
     if (gameState === 'paused') {
         gameState = 'running';
         startButton.textContent = 'Pause';
@@ -81,6 +99,9 @@ startButton.addEventListener('click', () => {
 });
 
 exitButton.addEventListener('click', () => {
+    // Also initialize audio here for good measure
+    initAudio();
+    
     gameState = 'ended';
     clearInterval(spawnInterval);
     letters = [];
@@ -90,6 +111,7 @@ exitButton.addEventListener('click', () => {
 
 // Keyboard controls
 document.addEventListener('keydown', (e) => {
+    initAudio(); // Initialize on keyboard interaction too
     if (e.key === 'ArrowLeft') keys.left = true;
     if (e.key === 'ArrowRight') keys.right = true;
 });
@@ -101,6 +123,7 @@ document.addEventListener('keyup', (e) => {
 // Touch controls
 canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
+    initAudio(); // Initialize on touch too
     const touch = e.touches[0];
     touchX = touch.clientX - canvas.offsetLeft;
 }, { passive: false });
@@ -119,6 +142,7 @@ canvas.addEventListener('touchend', () => {
 function moveBasket() {
     if (gameState !== 'running') return;
 
+    // Keyboard movement
     if (keys.left && basket.x > 0) {
         basket.x -= basket.speed;
     }
@@ -126,6 +150,7 @@ function moveBasket() {
         basket.x += basket.speed;
     }
 
+    // Touch movement
     if (touchX !== null) {
         const targetX = touchX - basket.width / 2;
         if (targetX > 0 && targetX + basket.width < canvas.width) {
@@ -154,17 +179,6 @@ function spawnLetter() {
 
 function spawnLetters() {
     spawnInterval = setInterval(spawnLetter, 2000);
-}
-
-// Resume AudioContext for iOS
-function resumeAudioContext() {
-    if (audioContext && audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
-            console.log('AudioContext resumed successfully');
-        }).catch((err) => {
-            console.log('Error resuming AudioContext:', err);
-        });
-    }
 }
 
 // Game loop
@@ -248,21 +262,33 @@ function update() {
     requestAnimationFrame(update);
 }
 
+// Improved sound playing function for iOS compatibility
 function playLetterSound(letter) {
-    if (!audioContext) {
-        console.log('AudioContext not initialized yet');
-        return;
+    if (!audioInitialized) {
+        initAudio();
     }
+    
     const sound = letterSounds[letter];
-    if (sound) {
-        sound.currentTime = 0; // Reset to start
-        sound.play().then(() => {
-            console.log(`Playing sound for ${letter}`);
-        }).catch((error) => {
-            console.log(`Error playing sound for ${letter}:`, error);
+    
+    // Reset and play with promise handling
+    sound.currentTime = 0;
+    
+    // Use a promise to handle playback more robustly
+    const playPromise = sound.play();
+    
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            console.error("Error playing sound:", error);
+            
+            // If autoplay was prevented, try to resume the audio context
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    console.log("AudioContext resumed");
+                    // Try playing again after resuming
+                    sound.play().catch(e => console.error("Still couldn't play sound:", e));
+                });
+            }
         });
-    } else {
-        console.log(`No sound file loaded for ${letter}`);
     }
 }
 
