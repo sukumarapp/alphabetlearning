@@ -11,16 +11,10 @@ window.addEventListener('resize', resizeCanvas);
 
 // Preload audio files for letters A to Z
 const letterSounds = {};
-let audioUnlocked = false; // Flag to track if audio is unlocked
-
-function preloadAudio() {
-    for (let i = 65; i <= 90; i++) {
-        const letter = String.fromCharCode(i);
-        letterSounds[letter] = new Audio(`${letter}.mp3`);
-        letterSounds[letter].preload = 'auto'; // Preload audio
-    }
+for (let i = 65; i <= 90; i++) {
+    const letter = String.fromCharCode(i);
+    letterSounds[letter] = new Audio(`${letter}.mp3`);
 }
-preloadAudio();
 
 // Preload images
 const basketImage = new Image();
@@ -34,7 +28,7 @@ let basket = {
     y: canvas.height - 100,
     width: 150,
     height: 75,
-    speed: 10
+    speed: 10 // Increased for smoother touch movement
 };
 let letters = [];
 let currentLetter = 'A';
@@ -52,9 +46,6 @@ const startButton = document.getElementById('startButton');
 const exitButton = document.getElementById('exitButton');
 
 startButton.addEventListener('click', () => {
-    if (!audioUnlocked) {
-        unlockAudio(); // Unlock audio on first user interaction
-    }
     if (gameState === 'paused') {
         gameState = 'running';
         startButton.textContent = 'Pause';
@@ -113,6 +104,7 @@ canvas.addEventListener('touchend', () => {
 function moveBasket() {
     if (gameState !== 'running') return;
 
+    // Keyboard movement
     if (keys.left && basket.x > 0) {
         basket.x -= basket.speed;
     }
@@ -120,6 +112,7 @@ function moveBasket() {
         basket.x += basket.speed;
     }
 
+    // Touch movement
     if (touchX !== null) {
         const targetX = touchX - basket.width / 2;
         if (targetX > 0 && targetX + basket.width < canvas.width) {
@@ -148,17 +141,6 @@ function spawnLetter() {
 
 function spawnLetters() {
     spawnInterval = setInterval(spawnLetter, 2000);
-}
-
-// Unlock audio for iOS
-function unlockAudio() {
-    const sound = new Audio(); // Create a dummy sound to unlock audio
-    sound.play().then(() => {
-        audioUnlocked = true;
-        console.log('Audio unlocked successfully');
-    }).catch((error) => {
-        console.log('Audio unlock failed:', error);
-    });
 }
 
 // Game loop
@@ -243,12 +225,9 @@ function update() {
 }
 
 function playLetterSound(letter) {
-    if (!audioUnlocked) return; // Don't attempt to play if audio isn't unlocked
     const sound = letterSounds[letter];
     sound.currentTime = 0;
-    sound.play().catch((error) => {
-        console.log(`Error playing sound for ${letter}:`, error);
-    });
+    sound.play();
 }
 
 function updateCurrentLetter() {
