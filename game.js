@@ -167,7 +167,7 @@ function update() {
         letters.forEach((letter, index) => {
             letter.y += letter.speed;
             ctx.font = '100px Arial Black';
-            ctx.fillStyle = 'orange';
+            ctx.fillStyle = 'blue';
             ctx.strokeStyle = 'white';
             ctx.lineWidth = 2;
             ctx.fillText(letter.text, letter.x, letter.y);
